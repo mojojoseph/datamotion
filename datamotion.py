@@ -6,41 +6,18 @@ A project to explore datamotion API
 """
 
 import json
-import time
-from datetime import datetime
 import requests
-import os
-import sys
-import wget
-
+import base64
 
 """
 http://developers.datamotion.com/docs
 https://kb.datamotion.com/?ht_kb=what-are-the-pop3smtp-settings-for-direct
-
-
-https://kb.datamotion.com/?ht_kb=datamotion-securemail-url-endpoints
-Messaging
-To access the Messaging API (REST/SOAP), use:
-
-Production: https://ssl.datamotion.com/cmv4/cmv4.asmx
-Testing: https://sandbox.datamotion.com/cmv4/cmv4.asmx
-Administration
-To access the Admin API (REST) use:
-
-Production: https://ssl.datamotion.com/Remote
-Testing: https://sandbox.datamotion.com/Remote
-Provisioning
-To access the Provisioning API (REST) use:
-
-Production: https://provisioning.datamotion.com:8888/
 In order to use the DataMotion SecureMail APIs, you must have an active SecureMail account on our system. If you do not have an account and would like to integrate SecureMail into your workflows, please contact DataMotion.
-"""
-
-
 # jeff@catapulthealth.customer.cmsafe.com Quantum1!
 # jeff2@catapulthealth.customer.cmsafe.com Quantum1!
 # direct messaging API URL is https://directbeta.datamotion.com/SecureMessagingApi
+"""
+
 
 class DataMotion:
     def __init__(self, config_file):
@@ -64,8 +41,11 @@ class DataMotion:
 
         r = requests.post(url=url, json=body, headers=headers)
         print("The sessionKey obtained was:", r.text)
-        # {"SessionKey": "7B93178BBEBD45588CCE4FD3052F974F"}
-        return r.text
+        # This is an example of what the session key looks like
+        #  {"SessionKey": "7B93178BBEBD45588CCE4FD3052F974F"}
+        # print(json.loads(r.text), type(json.loads(r.text)))
+        return json.loads(r.text)["SessionKey"]
+
 
     def get_account_details(self, session_key):
         url = self.config["baseurl"] + "/Account/Details"
@@ -101,6 +81,8 @@ class DataMotion:
         """
 
     def send_a_message(self, session_key):
+        encoded_string = self.encode_to_base_64("./docs/adamEverymanB2.xml").decode("utf-8")
+
         url = self.config["baseurl"] + "/Message/"
 
         headers = {
@@ -111,20 +93,27 @@ class DataMotion:
         body = {
             "To": ["jeff2@catapulthealth.customer.cmsafe.com"],
             "From": "jeff@catapulthealth.customer.cmsafe.com",
-            "Cc": ["kbhattarai@quantumiot.com"],
-            "Bcc": ["krishnamani.bhattarai@mavs.uta.edu"],
-            "Subject": "This is a test for direct messaging api",
+            "Cc": [],
+            "Bcc": [],
+            "Subject": "This is another test email for direct messaging api",
             "CreateTime": "11:51 AM",
+            "Attachments": [{
+                "AttachmentBase64": str(encoded_string),
+                "ContentType": "application/xml",
+                "FileName": "adamEverymanB2.xml"
+            }],
 
-            "HtmlBody": "<!DOCTYPE html><html><body>This document contains some sensitive information</body></html>",
-            "TextBody": "Patient's Blood Pressure: 120/80"
+            "HtmlBody": "<!DOCTYPE html><html><body>This document contains sensitive information in C-CDA XML format</body></html>",
+            "TextBody": "Another Sample Email Message"
         }
 
         r = requests.post(url=url, json=body, headers=headers)
+
         if r.status_code == 200:
             print("Message successfully sent", r.status_code)
             print("The message id of the message sent was: ", r.text)
             #The message id of the message sent was:  {"MessageId":12077}
+            #The message id of the message sent was:  {"MessageId":12080}
         pass
 
     def get_inbox_message_ids(self, session_key):
@@ -139,8 +128,7 @@ class DataMotion:
         r = requests.post(url=url, json=body, headers=headers)
         if r.status_code == 200:
             print("Request successfully completed", r.status_code)
-            # print("The message ids are: ", r.text)
-            #The message id of the message sent was:  {"MessageId":12077}
+            # The message id of the message sent was:  {"MessageId":12077}
             return r.json()["MessageIds"]
         return []
 
@@ -154,56 +142,82 @@ class DataMotion:
         body = {}
         r = requests.get(url=url, json=body, headers=headers)
         if r.status_code == 200:
-            print("Request successfully completed", r.status_code)
-            # print(r.text)
+            print(r.json())
             return r.json()
-            # {
-            #     "To": [
-            #         "\"jeff2@catapulthealth.customer.cmsafe.com\" <jeff2@catapulthealth.customer.cmsafe.com>"
-            #     ],
-            #     "From": "\"jeff@catapulthealth.customer.cmsafe.com\" <jeff@catapulthealth.customer.cmsafe.com>",
-            #     "Cc": [
-            #         "\"kbhattarai@quantumiot.com\" <kbhattarai@quantumiot.com>"
-            #     ],
-            #     "Bcc": [],
-            #     "Subject": "This is a test for direct messaging api",
-            #     "CreateTime": "4/24/2018 1:13:54 PM (UTC-04:00)",
-            #     "Attachments": [],
-            #     "HtmlBody": "<!DOCTYPE html><html><body>This document contains some sensitive information</body></html>",
-            #     "TextBody": "Patient's Blood Pressure: 120/80"
-            # }
-        pass
 
     def load_json(self, json_file):
         with open(json_file) as json_file:
             data = json.load(json_file)
         return data
 
+    def encode_to_base_64(self, filename):
+        fp = open(filename, "rb")
+        bytes = fp.read()
+        encoded_string = base64.b64encode(bytes )
+        return encoded_string
+
+    def decode_base_64(self, some_encoded_string):
+        return base64.b64decode(some_encoded_string).decode("utf-8")
 
 
 
+
+def send_a_message_with_CCDA_XML_Payload():
+    ################## First Send A Message With C-CDA XML Payload ############################
+
+    # define a configuration file for the first account
+    datamotion_config_file1 = "./config/config1.json"
+
+    # Create an instance of the datamotion class using this configuration file
+    my_data_motion_instance1 = DataMotion(datamotion_config_file1)
+
+    # Get a Session Key that is required to make various other calls using this account
+    SessionKey = my_data_motion_instance1.get_a_session_key()
+
+    # To view the account details
+    my_data_motion_instance1.get_account_details(SessionKey)
+
+    # To Send a Message with a C-CDA XML as a payload
+    my_data_motion_instance1.send_a_message(SessionKey)
+
+    ################## End of Sending Message With C-CDA XML Payload ##########################
+
+def retrieve_a_message_with_CCDA_XML_Payload():
+    ################## Second Retrieve A Message With C-CDA XML Payload ############################
+
+    # define a configuratino file for the second account
+    datamotion_config_file2 = "./config/config2.json"
+
+    # Create an instance of the datamotion class using this configuration file
+    my_data_motion_instance2 = DataMotion(datamotion_config_file2)
+
+    # Get a Session Key that is required to make various other calls using this account
+    SessionKey = my_data_motion_instance2.get_a_session_key()
+
+    # Retrieve all the message ids in the inbox in an array
+    message_ids_array = my_data_motion_instance2.get_inbox_message_ids(SessionKey)
+
+    # Iterate through all the message ids in the message ids array
+    for id in message_ids_array:
+        # retrieve each message
+        my_retrieved_json = my_data_motion_instance2.get_a_message_by_id(SessionKey, id)
+
+        # check to see if message has attachments
+        if my_retrieved_json["Attachments"]:
+            # retrieve the base 64 encoded payload of the C-CDA XML
+            base64encoded_message = my_retrieved_json["Attachments"][0]["AttachmentBase64"]
+            print("Base 64 encoded message:\n", base64encoded_message)
+
+            # decode the encoded message to get back the original C-CDA XML Payload
+            decoded_message = my_data_motion_instance2.decode_base_64(base64encoded_message)
+            print("Decoded message (C-CDA XML Payload)):\n", decoded_message)
+
+            ################## End of retrieving a Message With C-CDA XML Payload ############################
 
 
 def main():
-
-    #### First Send A Message
-    # datamotion_config_file1 = "./config/config1.json"
-    # my_data_motion_instance1 = DataMotion(datamotion_config_file1)
-    # SessionKey = json.loads(my_data_motion_instance1.get_a_session_key())["SessionKey"]
-    # my_data_motion_instance.get_account_details(SessionKey)
-    # my_data_motion_instance1.send_a_message(SessionKey)
-
-
-    #### Second Retrieve a Message
-    datamotion_config_file2 = "./config/config2.json"
-    my_data_motion_instance2 = DataMotion(datamotion_config_file2)
-    SessionKey = json.loads(my_data_motion_instance2.get_a_session_key())["SessionKey"]
-    message_ids_array = my_data_motion_instance2.get_inbox_message_ids(SessionKey)
-    for id in message_ids_array:
-        message_details = my_data_motion_instance2.get_a_message_by_id(SessionKey,id)
-        print(json.dumps(message_details))
-    pass
-
+    send_a_message_with_CCDA_XML_Payload()
+    retrieve_a_message_with_CCDA_XML_Payload()
 
 if __name__ == "__main__":
     main()
